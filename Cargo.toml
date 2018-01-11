@@ -1,0 +1,16 @@
+[package]
+name = "calculator-the-solver"
+version = "0.0.1"
+authors = ["Jewoo Lee <shema7k@gmail.com>"]
+
+[lib]
+name = "lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bin"
+path = "src/bin/main.rs"
+
+[dependencies]
+regex = "0.2"
+lazy_static = "1.0"
