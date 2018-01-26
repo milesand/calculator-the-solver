@@ -15,7 +15,7 @@ pub enum Op {
 
 impl Op {
     pub fn apply(&self, n: i32) -> Option<i32> {
-        use self::Op::*;
+        use self::Op::{Del, Add, Rpc, Div, Ins, Mul};
         match *self {
                 Add(m) => Some(m + n),
                 Mul(m) => Some(m * n),
@@ -42,7 +42,7 @@ impl Op {
 impl FromStr for Op {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use self::Op::*;
+        use self::Op::{Del, Add, Rpc, Div, Ins, Mul};
         lazy_static! {
             static ref RPC_PATTERN: Regex = Regex::new(r"(\d+)=>(\d+)").unwrap();
         }
@@ -75,7 +75,7 @@ impl FromStr for Op {
 
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        use self::Op::*;
+        use self::Op::{Del, Add, Rpc, Div, Ins, Mul};
         match *self {
             Add(n) => {
                 if n >= 0 {
