@@ -220,6 +220,8 @@ mod tests {
             "-1=>1",
             "<<1",
             "+1+1",
+            "1=>",
+            "=>1",
         ];
         
         for test_case in &test_cases {
