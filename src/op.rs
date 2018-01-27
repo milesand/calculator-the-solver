@@ -9,7 +9,7 @@ pub enum Op {
     Mul(i32),
     Div(i32),
     Del,
-    Ins(i32),
+    Ins(String),
     Rpc(String, String),
 }
 
@@ -21,12 +21,10 @@ impl Op {
                 Mul(m) => Some(m * n),
                 Div(m) => if n % m == 0 { Some(n / m) } else { None },
                 Del => Some((n.abs() / 10) * n.signum()),
-                Ins(m) => {
-                    let mut pow_of_ten = 10;
-                    while pow_of_ten <= m {
-                        pow_of_ten *= 10;
-                    }
-                    Some((n.abs() * pow_of_ten + m) * if n < 0 { -1 } else { 1 })
+                Ins(ref s) => {
+                    let mut n = n.to_string();
+                    n.push_str(s);
+                    Some(s.parse().unwrap())
                 }
                 Rpc(ref from, ref to) => {
                     Some(n.to_string()
@@ -56,8 +54,8 @@ impl FromStr for Op {
             s[1..].parse().map(Mul).map_err(|_| ())
         } else if s.starts_with('/') {
             s[1..].parse().map(Div).map_err(|_| ())
-        } else if let Ok(n) = s.parse() {
-            Ok(Ins(n))
+        } else if s.bytes().all(|b| b'0' <= b && b <= b'9') {
+            Ok(Ins(s.to_string()))
         } else if let Some(captures) = RPC_PATTERN.captures(s) {
             Ok(Rpc(captures.get(1)
                        .unwrap()
@@ -87,7 +85,7 @@ impl fmt::Display for Op {
             Mul(n) => write!(f, "*{}", n),
             Div(n) => write!(f, "/{}", n),
             Del => write!(f, "<<"),
-            Ins(n) => write!(f, "{}", n),
+            Ins(ref s) => write!(f, "{}", s),
             Rpc(ref from, ref to) => write!(f, "{}=>{}", from, to),
         }
     }
@@ -184,13 +182,13 @@ mod tests {
     #[test]
     fn parse_ins() {
         let test_cases = [
-            ("1", Ok(Op::Ins(1))),
-            ("12", Ok(Op::Ins(12))),
-            ("123", Ok(Op::Ins(123))),
-            ("1234", Ok(Op::Ins(1234))),
-            ("12345", Ok(Op::Ins(12345))),
-            ("123456", Ok(Op::Ins(123456))),
-            ("1234567", Ok(Op::Ins(1234567))),
+            ("1", Ok(Op::Ins("1".to_string()))),
+            ("12", Ok(Op::Ins("12".to_string()))),
+            ("123", Ok(Op::Ins("123".to_string()))),
+            ("1234", Ok(Op::Ins("1234".to_string()))),
+            ("12345", Ok(Op::Ins("12345".to_string()))),
+            ("123456", Ok(Op::Ins("123456".to_string()))),
+            ("1234567", Ok(Op::Ins("1234567".to_string()))),
         ];
         
         for &(ref input, ref output) in &test_cases {
