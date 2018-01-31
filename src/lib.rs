@@ -1,4 +1,5 @@
 #![feature(option_filter)]
+#![feature(try_from)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -27,12 +28,13 @@ pub fn run(initial: i32, goal: i32, moves: usize, ops: &[Op]) -> Result<Option<V
     }
 }
 
-fn solve<'a: 'b, 'b>(n: i32,
-                     goal: i32,
-                     moves: usize,
-                     ops: &'a [Op],
-                     path: &'b mut Vec<&'a Op>)
-                     -> bool {
+fn solve<'a: 'b, 'b>(
+    n: i32,
+    goal: i32,
+    moves: usize,
+    ops: &'a [Op],
+    path: &'b mut Vec<&'a Op>,
+) -> bool {
     if n == goal {
         return true;
     }

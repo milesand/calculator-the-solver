@@ -1,9 +1,10 @@
 use regex::Regex;
 
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::str::FromStr;
 
-use self::error::{InvalidDivError};
+use self::error::{InvalidDivError, InvalidInsError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Op {
@@ -16,7 +17,7 @@ enum OpKind {
     Mul(i32),
     Div(i32),
     Del,
-    Ins(String),
+    Ins { digits: u8, n: u32 },
     Rpc(String, String),
 }
 
@@ -44,22 +45,23 @@ impl Op {
     }
 
     pub fn del() -> Self {
-        Op {
-            inner: OpKind::Del,
-        }
+        Op { inner: OpKind::Del }
     }
 
-    pub fn ins(pattern: String) -> Self {
-        // This one is a dummy. Will be replaced when I refactor Ins and stuff
-        Op {
-            inner: OpKind::Ins(pattern),
+    pub fn ins(digits: u8, n: u32) -> Result<Self, InvalidInsError> {
+        if n >= 10u32.pow(u32::from(digits)) {
+            Err(InvalidInsError)
+        } else {
+            Ok(Op {
+                inner: OpKind::Ins { digits, n },
+            })
         }
     }
 
     pub fn rpc(from: String, to: String) -> Self {
-        // Also a dummy.
+        // A dummy impl; will be refactored
         Op {
-            inner: OpKind::Rpc(from, to)
+            inner: OpKind::Rpc(from, to),
         }
     }
 
@@ -74,11 +76,13 @@ impl Op {
                 None
             },
             OpKind::Del => Some((n.abs() / 10) * n.signum()),
-            OpKind::Ins(ref s) => {
-                let mut n = n.to_string();
-                    n.push_str(s);
-                    Some(s.parse().unwrap())
-            }
+            OpKind::Ins { digits, n: m } => Some(
+                n * 10i32.pow(u32::from(digits)) + i32::try_from(m).ok()? * if n < 0 {
+                    -1
+                } else {
+                    1
+                }
+            ),
             OpKind::Rpc(ref from, ref to) => Some(n.to_string().replace(from, to).parse().unwrap()),
         }.filter(|&n| -100000 < n && n < 1000000)
     }
@@ -102,9 +106,12 @@ impl FromStr for Op {
         } else if s.starts_with('*') {
             s[1..].parse().map(Op::mul).map_err(|_| ())
         } else if s.starts_with('/') {
-            s[1..].parse().map_err(|_| ()).and_then(|n| Op::div(n).map_err(|_| ()))
-        } else if s.bytes().all(|b| b'0' <= b && b <= b'9') {
-            Ok(Op::ins(s.to_string()))
+            s[1..]
+                .parse()
+                .map_err(|_| ())
+                .and_then(|n| Op::div(n).map_err(|_| ()))
+        } else if let Ok(n) = s.parse::<u32>() {
+            Op::ins(s.len().try_into().map_err(|_| ())?, n).map_err(|_| ())
         } else if let Some(captures) = RPC_PATTERN.captures(s) {
             Ok(Op::rpc(
                 captures.get(1).unwrap().as_str().to_string(),
@@ -131,7 +138,22 @@ impl fmt::Display for Op {
             OpKind::Mul(n) => write!(f, "*{}", n),
             OpKind::Div(n) => write!(f, "/{}", n),
             OpKind::Del => write!(f, "<<"),
-            OpKind::Ins(ref s) => write!(f, "{}", s),
+            OpKind::Ins { digits, n } => {
+                let mut pow_of_ten = if digits != 0 {
+                    10u32.pow(u32::from(digits - 1))
+                } else {
+                    0
+                };
+                while pow_of_ten > n {
+                    write!(f, "0")?;
+                    pow_of_ten /= 10;
+                }
+                if n != 0 {
+                    write!(f, "{}", n)
+                } else {
+                    Ok(())
+                }
+            },
             OpKind::Rpc(ref from, ref to) => write!(f, "{}=>{}", from, to),
         }
     }
@@ -141,6 +163,10 @@ pub mod error {
     /// Returned on failed call to Op::div.
     /// Currently only returned on Op::div(0).
     pub struct InvalidDivError;
+
+    /// Returned on failed call to Op::ins.
+    /// Currently, the initializer fails when the base 10 representation of n is shorter than the given digits; e. g. Op::ins(1, 10).
+    pub struct InvalidInsError;
 }
 
 #[cfg(test)]
