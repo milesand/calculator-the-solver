@@ -171,131 +171,147 @@ pub mod error {
 
 #[cfg(test)]
 mod tests {
-    use super::Op;
+    use super::{Op, OpKind};
 
     #[test]
     fn parse_add() {
         let test_cases = [
-            ("+1", Ok(Op::Add(1))),
-            ("+12", Ok(Op::Add(12))),
-            ("+123", Ok(Op::Add(123))),
-            ("+1234", Ok(Op::Add(1234))),
-            ("+12345", Ok(Op::Add(12345))),
-            ("+123456", Ok(Op::Add(123456))),
-            ("+1234567", Ok(Op::Add(1234567))),
+            ("+1", 1),
+            ("+12", 12),
+            ("+123", 123),
+            ("+1234", 1234),
+            ("+12345", 12345),
+            ("+123456", 123456),
+            ("+1234567", 1234567),
         ];
 
-        for &(ref input, ref output) in &test_cases {
-            assert_eq!(input.parse::<Op>(), *output);
+        for &(input, expected) in &test_cases {
+            let result = input.parse::<Op>();
+            match result {
+                Ok(Op { inner: OpKind::Add(n) }) if n == expected => (),
+                something_else => panic!("Parsed {:?}, Expected Ok(Op {{ inner: Add({}) }}); Got {:?} instead", input, expected, something_else),
+            }
         }
     }
 
     #[test]
     fn parse_sub() {
         let test_cases = [
-            ("-1", Ok(Op::Add(-1))),
-            ("-12", Ok(Op::Add(-12))),
-            ("-123", Ok(Op::Add(-123))),
-            ("-1234", Ok(Op::Add(-1234))),
-            ("-12345", Ok(Op::Add(-12345))),
-            ("-123456", Ok(Op::Add(-123456))),
+            ("-1", -1),
+            ("-12", -12),
+            ("-123", -123),
+            ("-1234", -1234),
+            ("-12345", -12345),
+            ("-123456", -123456),
         ];
 
-        for &(ref input, ref output) in &test_cases {
-            assert_eq!(input.parse::<Op>(), *output);
+        for &(input, expected) in &test_cases {
+            let result = input.parse::<Op>();
+            match result {
+                Ok(Op { inner: OpKind::Add(n) }) if n == expected => (),
+                something_else => panic!("Parsed {:?}, Expected Ok(Op {{ inner: Add({}) }}); Got {:?} instead", input, expected, something_else),
+            }
         }
     }
 
     #[test]
     fn parse_mul() {
         let test_cases = [
-            ("*1", Ok(Op::Mul(1))),
-            ("*12", Ok(Op::Mul(12))),
-            ("*123", Ok(Op::Mul(123))),
-            ("*1234", Ok(Op::Mul(1234))),
-            ("*12345", Ok(Op::Mul(12345))),
-            ("*123456", Ok(Op::Mul(123456))),
-            ("*1234567", Ok(Op::Mul(1234567))),
-            ("*-1", Ok(Op::Mul(-1))),
-            ("*-12", Ok(Op::Mul(-12))),
-            ("*-123", Ok(Op::Mul(-123))),
-            ("*-1234", Ok(Op::Mul(-1234))),
-            ("*-12345", Ok(Op::Mul(-12345))),
-            ("*-123456", Ok(Op::Mul(-123456))),
+            ("*1", 1),
+            ("*12", 12),
+            ("*123", 123),
+            ("*1234", 1234),
+            ("*12345", 12345),
+            ("*123456", 123456),
+            ("*1234567", 1234567),
+            ("*-1", -1),
+            ("*-12", -12),
+            ("*-123", -123),
+            ("*-1234", -1234),
+            ("*-12345", -12345),
+            ("*-123456", -123456),
         ];
 
-        for &(ref input, ref output) in &test_cases {
-            assert_eq!(input.parse::<Op>(), *output);
+        for &(input, expected) in &test_cases {
+            let result = input.parse::<Op>();
+            match result {
+                Ok(Op { inner: OpKind::Mul(n) }) if n == expected => (),
+                something_else => panic!("Parsed {:?}, Expected Ok(Op {{ inner: Mul({}) }}); Got {:?} instead", input, expected, something_else),
+            }
         }
     }
 
     #[test]
     fn parse_div() {
         let test_cases = [
-            ("/1", Ok(Op::Div(1))),
-            ("/12", Ok(Op::Div(12))),
-            ("/123", Ok(Op::Div(123))),
-            ("/1234", Ok(Op::Div(1234))),
-            ("/12345", Ok(Op::Div(12345))),
-            ("/123456", Ok(Op::Div(123456))),
-            ("/1234567", Ok(Op::Div(1234567))),
-            ("/-1", Ok(Op::Div(-1))),
-            ("/-12", Ok(Op::Div(-12))),
-            ("/-123", Ok(Op::Div(-123))),
-            ("/-1234", Ok(Op::Div(-1234))),
-            ("/-12345", Ok(Op::Div(-12345))),
-            ("/-123456", Ok(Op::Div(-123456))),
+            ("/1", 1),
+            ("/12", 12),
+            ("/123", 123),
+            ("/1234", 1234),
+            ("/12345", 12345),
+            ("/123456", 123456),
+            ("/1234567", 1234567),
+            ("/-1", -1),
+            ("/-12", -12),
+            ("/-123", -123),
+            ("/-1234", -1234),
+            ("/-12345", -12345),
+            ("/-123456", -123456),
         ];
 
-        for &(ref input, ref output) in &test_cases {
-            assert_eq!(input.parse::<Op>(), *output);
+        for &(input, expected) in &test_cases {
+            let result = input.parse::<Op>();
+            match result {
+                Ok(Op { inner: OpKind::Div(n) }) if n == expected => (),
+                something_else => panic!("Parsed {:?}, Expected Ok(Op {{ inner: Div({}) }}); Got {:?} instead", input, expected, something_else),
+            }
         }
     }
 
     #[test]
     fn parse_del() {
-        assert_eq!("<<".parse::<Op>(), Ok(Op::Del));
+        assert_eq!("<<".parse::<Op>(), Ok(Op { inner: OpKind::Del }));
     }
 
     #[test]
     fn parse_ins() {
         let test_cases = [
-            ("1", Ok(Op::Ins("1".to_string()))),
-            ("12", Ok(Op::Ins("12".to_string()))),
-            ("123", Ok(Op::Ins("123".to_string()))),
-            ("1234", Ok(Op::Ins("1234".to_string()))),
-            ("12345", Ok(Op::Ins("12345".to_string()))),
-            ("123456", Ok(Op::Ins("123456".to_string()))),
-            ("1234567", Ok(Op::Ins("1234567".to_string()))),
+            ("0", (1, 0)),
+            ("00", (2, 0)),
+            ("000", (3, 0)),
+            ("0000", (4, 0)),
+            ("00000", (5, 0)),
+            ("1", (1, 1)),
+            ("01", (2, 1)),
+            ("001", (3, 1)),
+            ("12", (2, 12)),
+            ("123", (3, 123)),
+            ("012", (3, 12)),
+            ("0012", (4, 12)),
+            ("1234567", (7, 1234567)),
         ];
 
-        for &(ref input, ref output) in &test_cases {
-            assert_eq!(input.parse::<Op>(), *output);
-        }
-    }
-
-    #[test]
-    fn parse_rpc() {
-        let test_cases = [
-            ("1=>2", Ok(Op::Rpc("1".into(), "2".into()))),
-            ("12=>3", Ok(Op::Rpc("12".into(), "3".into()))),
-            ("123=>45", Ok(Op::Rpc("123".into(), "45".into()))),
-            ("1234=>567", Ok(Op::Rpc("1234".into(), "567".into()))),
-        ];
-
-        for &(ref input, ref output) in &test_cases {
-            assert_eq!(input.parse::<Op>(), *output);
+        for &(input, (expected_digits, expected_n)) in &test_cases {
+            let result = input.parse::<Op>();
+            match result {
+                Ok(Op { inner: OpKind::Ins {digits, n} }) if digits == expected_digits && n == expected_n => (),
+                something_else => panic!("Parsed {:?}, Expected Ok(Op {{ inner: Ins {{ digits: {}, n: {} }} }}); Got {:?} instead", input, expected_digits, expected_n, something_else),
+            }
         }
     }
 
     #[test]
     fn parse_err() {
         let test_cases = [
-            "a", "1a", "1+1", "1=>-1", "-1=>1", "<<1", "+1+1", "1=>", "=>1"
+            "a", "1a", "1+1", "1=>-1", "-1=>1", "1=>2a", "<<1", "+1+1", "1=>", "=>1"
         ];
 
-        for test_case in &test_cases {
-            assert_eq!(test_case.parse::<Op>(), Err(()))
+        for input in &test_cases {
+            let result = input.parse::<Op>();
+            match result {
+                Err(()) => (),
+                something_else => panic!("Parsed {:?}, Expected Err(()); Got {:?} instead", input, something_else),
+            } 
         }
     }
 }
