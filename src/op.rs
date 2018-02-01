@@ -225,8 +225,9 @@ impl fmt::Display for Op {
                     pow_of_ten /= 10;
                 }
                 if from_n != 0 {
-                    write!(f, "{}=>", from_n)?
+                    write!(f, "{}", from_n)?
                 }
+                write!(f, "=>")?;
                 pow_of_ten = if to_digits != 0 {
                     10u32.pow(u32::from(to_digits - 1))
                 } else {
@@ -249,12 +250,15 @@ impl fmt::Display for Op {
 pub mod error {
     /// Returned on failed call to Op::div.
     /// Currently only returned on Op::div(0).
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub struct InvalidDivError;
 
     /// Returned on failed call to Op::ins.
     /// Currently, the initializer fails when the base 10 representation of n is shorter than the given digits; e. g. Op::ins(1, 10).
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub struct InvalidInsError;
 
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub struct InvalidRpcError;
 }
 
@@ -426,6 +430,117 @@ mod tests {
                 Err(()) => (),
                 something_else => panic!("Parsed {:?}, Expected Err(()); Got {:?} instead", input, something_else),
             } 
+        }
+    }
+
+    #[test]
+    fn display_add_sub() {
+        let test_cases = [
+            (1, "+1"),
+            (23, "+23"),
+            (456789, "+456789"),
+            (-10, "-10"),
+            (-1112, "-1112"),
+        ];
+
+        for &(input, expected) in &test_cases {
+            let op = Op::add(input);
+            let printed = format!("{}", op);
+            if printed != expected {
+                panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+            }
+        }
+    }
+
+    #[test]
+    fn display_mul() {
+        let test_cases = [
+            (1, "*1"),
+            (23, "*23"),
+            (4567, "*4567"),
+            (-8, "*-8"),
+            (-910, "*-910"),
+        ];
+
+        for &(input, expected) in &test_cases {
+            let op = Op::mul(input);
+            let printed = format!("{}", op);
+            if printed != expected {
+                panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+            }
+        }
+    }
+
+    #[test]
+    fn display_div() {
+        let test_cases = [
+            (1, "/1"),
+            (23, "/23"),
+            (4567, "/4567"),
+            (-8, "/-8"),
+            (-910, "/-910"),
+        ];
+
+        for &(input, expected) in &test_cases {
+            let op = Op::div(input).expect("Call to Op::div({:?}) returned Err");
+            let printed = format!("{}", op);
+            if printed != expected {
+                panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+            }
+        }
+    }
+
+    #[test]
+    fn display_del() {
+        let expected = "<<";
+        let op = Op::del();
+        let printed = format!("{}", op);
+        if printed != expected {
+            panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+        }
+    }
+
+    #[test]
+    fn display_ins() {
+        let test_cases = [
+            ((1, 0), "0"),
+            ((2, 0), "00"),
+            ((3, 0), "000"),
+            ((1, 2), "2"),
+            ((2, 2), "02"),
+            ((3, 2), "002"),
+            ((3, 123), "123"),
+            ((4, 123), "0123"),
+            ((4, 1234), "1234"),
+        ];
+
+        for &((digits, n), expected) in &test_cases {
+            let op = Op::ins(digits, n).unwrap_or_else(|_| panic!("Call to Op::ins({:?}, {:?}) returned Err", digits, n));
+            let printed = format!("{}", op);
+            if printed != expected {
+                panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+            }
+        }
+    }
+
+    #[test]
+    fn display_rpc() {
+        let test_cases = [
+            (((1, 0), (1, 1)), "0=>1"),
+            (((1, 2), (1, 0)), "2=>0"),
+            (((2, 0), (2, 3)), "00=>03"),
+            (((2, 4), (2, 0)), "04=>00"),
+            (((2, 12), (2, 34)), "12=>34"),
+            (((3, 12), (2, 34)), "012=>34"),
+            (((4, 1234), (3, 5)), "1234=>005"),
+        ];
+
+        for &(((from_digits, from_n), (to_digits, to_n)), expected) in &test_cases {
+            let op = Op::rpc(from_digits, from_n, to_digits, to_n).unwrap_or_else(|_| panic!("Call to Op::rpc({:?}, {:?}, {:?}, {:?}) returned Err", from_digits, from_n, to_digits, to_n));
+            let printed = format!("{}", op);
+            if printed != expected {
+                panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+            }
         }
     }
 }
