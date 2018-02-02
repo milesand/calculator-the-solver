@@ -98,8 +98,8 @@ impl Op {
                     }
                 }
 
-                let from_pow_of_ten = 10i32.pow(u32::from(from_digits));
-                let to_pow_of_ten = 10i32.pow(u32::from(to_digits));
+                let from_pow_of_ten = 10i32.pow(u32::from(from_digits)) / 10;
+                let to_pow_of_ten = 10i32.pow(u32::from(to_digits)) / 10;
                 let from_n = i32::try_from(from_n).ok()?;
                 let to_n = i32::try_from(to_n).ok()?;
 
@@ -120,6 +120,7 @@ impl Op {
                         intermediate_pow_of_ten = 1;
                         intermediate = haystack / haystack_pow_of_ten;
                     } else {
+                        result = result * 10 + intermediate / intermediate_pow_of_ten;
                         intermediate = (intermediate % intermediate_pow_of_ten) * 10 + haystack / haystack_pow_of_ten;
                     }
                     haystack %= haystack_pow_of_ten;
@@ -132,7 +133,7 @@ impl Op {
                     result = result * intermediate_pow_of_ten * 10 + intermediate;
                 }
 
-                Some(result)
+                Some(result * if n < 0 {-1} else {1})
             }
         }.filter(|&n| -100000 < n && n < 1000000)
     }
@@ -540,6 +541,165 @@ mod tests {
             let printed = format!("{}", op);
             if printed != expected {
                 panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_add_sub() {
+        let test_cases = [
+            (0, 1, Some(1)),
+            (2, -3, Some(-1)),
+            (-4, 5, Some(1)),
+            (-6, -7, Some(-13)),
+            (999998, 1, Some(999999)),
+            (999999, 1, None),
+            (-99998, -1, Some(-99999)),
+            (-99999, -1, None),
+        ];
+
+        for &(n, op_n, expected) in &test_cases {
+            let op = Op::add(op_n);
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_mul() {
+        let test_cases = [
+            (0, 1, Some(0)),
+            (2, -3, Some(-6)),
+            (-4, 5, Some(-20)),
+            (-6, -7, Some(42)),
+            (333333, 3, Some(999999)),
+            (500000, 2, None),
+            (-33333, 3, Some(-99999)),
+            (-50000, 2, None),
+        ];
+        
+        for &(n, op_n, expected) in &test_cases {
+            let op = Op::mul(op_n);
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_div() {
+        let test_cases = [
+            (0, 3, Some(0)),
+            (2, 2, Some(1)),
+            (3, 2, None),
+            (4, 2, Some(2)),
+            (-6, 3, Some(-2)),
+            (-7, 3, None),
+            (9, -3, Some(-3)),
+            (11, -3, None),
+            (200000, -4, Some(-50000)),
+            (200000, -3, None),
+            (200000, -2, None),
+        ];
+
+        for &(n, op_n, expected) in &test_cases {
+            let op = Op::div(op_n).unwrap_or_else(|_| panic!("Call to Op::div({}) returned Err", op_n));
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_del() {
+        let test_cases = [
+            (0, Some(0)),
+            (3, Some(0)),
+            (-3, Some(0)),
+            (42, Some(4)),
+            (-42, Some(-4)),
+            (1337, Some(133)),
+            (-1337, Some(-133)),
+        ];
+
+        for &(n, expected) in &test_cases {
+            let op = Op::del();
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_ins() {
+        let test_cases = [
+            (0, (1, 0), Some(0)),
+            (0, (2, 0), Some(0)),
+            (0, (3, 0), Some(0)),
+            (1, (1, 0), Some(10)),
+            (1, (2, 0), Some(100)),
+            (1, (3, 0), Some(1000)),
+            (-1, (1, 0), Some(-10)),
+            (-1, (2, 0), Some(-100)),
+            (-1, (3, 0), Some(-1000)),
+            (2, (1, 3), Some(23)),
+            (2, (2, 3), Some(203)),
+            (2, (2, 34), Some(234)),
+            (2, (3, 34), Some(2034)),
+            (-2, (1, 3), Some(-23)),
+            (-2, (2, 3), Some(-203)),
+            (-2, (2, 34), Some(-234)),
+            (-2, (3, 34), Some(-2034)),
+            (10, (4, 0), Some(100000)),
+            (99, (4, 9999), Some(999999)),
+            (10, (5, 0), None),
+            (-10, (3, 0), Some(-10000)),
+            (-99, (3, 999), Some(-99999)),
+            (-10, (4, 0), None),
+        ];
+
+        for &(n, (op_digits, op_n), expected) in &test_cases {
+            let op = Op::ins(op_digits, op_n).unwrap_or_else(|_| panic!("Call to Op::ins({}, {}) returned Err", op_digits, op_n));
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_rpc() {
+        let test_cases = [
+            (1, (1, 1, 1, 2), Some(2)),
+            (1, (1, 2, 1, 3), Some(1)),
+            (10, (1, 0, 1, 2), Some(12)),
+            (11, (1, 1, 1, 2), Some(22)),
+            (12, (2, 12, 2, 34), Some(34)),
+            (10110, (2, 10, 2, 1), Some(1101)),
+            (10110, (2, 10, 3, 100), None),
+            (22, (1, 2, 3, 333), Some(333333)),
+            (22, (1, 2, 4, 4444), None),
+            (-1, (1, 1, 1, 2), Some(-2)),
+            (-1, (1, 2, 1, 3), Some(-1)),
+            (-10, (1, 0, 1, 2), Some(-12)),
+            (-11, (1, 1, 1, 2), Some(-22)),
+            (-12, (2, 12, 2, 34), Some(-34)),
+            (-10110, (2, 10, 2, 1), Some(-1101)),
+            (-10110, (2, 10, 3, 100), None),
+            (-22, (1, 2, 2, 33), Some(-3333)),
+            (-22, (1, 2, 3, 444), None),
+        ];
+
+        for &(n, (from_digits, from_n, to_digits, to_n), expected) in &test_cases {
+            let op = Op::rpc(from_digits, from_n, to_digits, to_n).unwrap_or_else(|_| panic!("Call to Op::rpc({}, {}, {}, {}) returned Err", from_digits, from_n, to_digits, to_n));
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
             }
         }
     }
