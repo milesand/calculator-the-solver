@@ -16,6 +16,7 @@ enum OpKind {
     Add(i32),
     Mul(i32),
     Div(i32),
+    Pow(u32),
     Del,
     Ins { digits: u8, n: u32 },
     Rpc { from_digits: u8, from_n: u32, to_digits: u8, to_n: u32 },
@@ -41,6 +42,12 @@ impl Op {
             Ok(Op {
                 inner: OpKind::Div(n),
             })
+        }
+    }
+
+    pub fn pow(n: u32) -> Self {
+        Op {
+            inner: OpKind::Pow(n),
         }
     }
 
@@ -78,6 +85,7 @@ impl Op {
             } else {
                 None
             },
+            OpKind::Pow(m) => Some(n.pow(m)),
             OpKind::Del => Some((n.abs() / 10) * n.signum()),
             OpKind::Ins { digits, n: m } => Some(
                 n * 10i32.pow(u32::from(digits)) + i32::try_from(m).ok()? * if n < 0 {
@@ -161,6 +169,8 @@ impl FromStr for Op {
                 .parse()
                 .map_err(|_| ())
                 .and_then(|n| Op::div(n).map_err(|_| ()))
+        } else if s.starts_with('^') {
+            s[1..].parse().map(Op::pow).map_err(|_| ())
         } else if let Ok(n) = s.parse::<u32>() {
             Op::ins(s.len().try_into().map_err(|_| ())?, n).map_err(|_| ())
         } else if let Some(captures) = RPC_PATTERN.captures(s) {
@@ -198,6 +208,7 @@ impl fmt::Display for Op {
             }
             OpKind::Mul(n) => write!(f, "*{}", n),
             OpKind::Div(n) => write!(f, "/{}", n),
+            OpKind::Pow(n) => write!(f, "^{}", n),
             OpKind::Del => write!(f, "<<"),
             OpKind::Ins { digits, n } => {
                 let mut pow_of_ten = if digits != 0 {
@@ -363,6 +374,27 @@ mod tests {
     }
 
     #[test]
+    fn parse_pow() {
+        let test_cases = [
+            ("^1", 1),
+            ("^12", 12),
+            ("^123", 123),
+            ("^1234", 1234),
+            ("^12345", 12345),
+            ("^123456", 123456),
+            ("^1234567", 1234567),
+        ];
+
+        for &(input, expected) in &test_cases {
+            let result = input.parse::<Op>();
+            match result {
+                Ok(Op { inner: OpKind::Pow(n) }) if n == expected => (),
+                something_else => panic!("Parsed {:?}, Expected Ok(Op {{ inner: Pow({}) }}); Got {:?} instead", input, expected, something_else),
+            }
+        }
+    }
+
+    #[test]
     fn parse_del() {
         assert_eq!("<<".parse::<Op>(), Ok(Op { inner: OpKind::Del }));
     }
@@ -422,7 +454,7 @@ mod tests {
     #[test]
     fn parse_err() {
         let test_cases = [
-            "a", "1a", "1+1", "1=>-1", "-1=>1", "1=>2a", "<<1", "+1+1", "1=>", "=>1"
+            "a", "1a", "1+1", "1=>-1", "-1=>1", "1=>2a", "<<1", "+1+1", "1=>", "=>1", "^-1", "^-12",
         ];
 
         for input in &test_cases {
@@ -484,6 +516,23 @@ mod tests {
 
         for &(input, expected) in &test_cases {
             let op = Op::div(input).expect("Call to Op::div({:?}) returned Err");
+            let printed = format!("{}", op);
+            if printed != expected {
+                panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+            }
+        }
+    }
+
+    #[test]
+    fn display_pow() {
+        let test_cases = [
+            (1, "^1"),
+            (23, "^23"),
+            (456, "^456"),
+        ];
+
+        for &(input, expected) in &test_cases {
+            let op = Op::pow(input);
             let printed = format!("{}", op);
             if printed != expected {
                 panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
@@ -607,6 +656,29 @@ mod tests {
 
         for &(n, op_n, expected) in &test_cases {
             let op = Op::div(op_n).unwrap_or_else(|_| panic!("Call to Op::div({}) returned Err", op_n));
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_pow() {
+        let test_cases = [
+            (2, 4, Some(16)),
+            (-3, 2, Some(9)),
+            (-3, 3, Some(-27)),
+            (1, u32::max_value(), Some(1)),
+            (0, u32::max_value(), Some(0)),
+            (-1, u32::max_value(), Some(-1)),
+            (10, 5, Some(100000)),
+            (10, 6, None),
+            (-10, 5, None),
+        ];
+
+        for &(n, op_n, expected) in &test_cases {
+            let op = Op::pow(op_n);
             let result = op.apply(n);
             if result != expected {
                 panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
