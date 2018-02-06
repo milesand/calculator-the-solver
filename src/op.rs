@@ -19,6 +19,7 @@ enum OpKind {
     Pow(u32),
     Del,
     Neg,
+    Rev,
     Ins { digits: u8, n: u32 },
     Rpc { from_digits: u8, from_n: u32, to_digits: u8, to_n: u32 },
 }
@@ -62,6 +63,12 @@ impl Op {
         }
     }
 
+    pub fn rev() -> Self {
+        Op {
+            inner: OpKind::Rev,
+        }
+    }
+
     pub fn ins(digits: u8, n: u32) -> Result<Self, InvalidInsError> {
         if n >= 10u32.pow(u32::from(digits)) {
             Err(InvalidInsError)
@@ -95,6 +102,18 @@ impl Op {
             OpKind::Pow(m) => Some(n.pow(m)),
             OpKind::Del => Some((n.abs() / 10) * n.signum()),
             OpKind::Neg => Some(-n),
+            OpKind::Rev => {
+                let sign = n.signum();
+                let mut n = n.abs();
+                let mut result = 0;
+
+                while n != 0 {
+                    result = result * 10 + n % 10;
+                    n /= 10;
+                }
+
+                Some(result * sign)
+            }
             OpKind::Ins { digits, n: m } => Some(
                 n * 10i32.pow(u32::from(digits)) + i32::try_from(m).ok()? * if n < 0 {
                     -1
@@ -168,6 +187,8 @@ impl FromStr for Op {
             Ok(Op::del())
         } else if s == "+/-" {
             Ok(Op::neg())
+        } else if s == "Reverse" {
+            Ok(Op::rev())
         } else if s.starts_with('-') {
             s.parse().map(Op::add).map_err(|_| ())
         } else if s.starts_with('+') {
@@ -221,6 +242,7 @@ impl fmt::Display for Op {
             OpKind::Pow(n) => write!(f, "^{}", n),
             OpKind::Del => write!(f, "<<"),
             OpKind::Neg => write!(f, "+/-"),
+            OpKind::Rev => write!(f, "Reverse"),
             OpKind::Ins { digits, n } => {
                 let mut pow_of_ten = if digits != 0 {
                     10u32.pow(u32::from(digits - 1))
@@ -421,6 +443,16 @@ mod tests {
     }
 
     #[test]
+    fn parse_rev() {
+        let input = "Reverse";
+        let result = input.parse::<Op>();
+        match result {
+            Ok(Op { inner: OpKind::Rev }) => (),
+            something_else => panic!("Parsed {:?}, Expected Ok(Op {{ inner: Neg }}); Got {:?} instead", input, something_else),
+        }
+    }
+
+    #[test]
     fn parse_ins() {
         let test_cases = [
             ("0", (1, 0)),
@@ -575,6 +607,16 @@ mod tests {
     fn display_neg() {
         let expected = "+/-";
         let op = Op::neg();
+        let printed = format!("{}", op);
+        if printed != expected {
+            panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+        }
+    }
+
+    #[test]
+    fn display_rev() {
+        let expected = "Reverse";
+        let op = Op::rev();
         let printed = format!("{}", op);
         if printed != expected {
             panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
@@ -750,6 +792,31 @@ mod tests {
 
         for &(n, expected) in &test_cases {
             let op = Op::neg();
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_rev() {
+        let test_cases = [
+            (1, Some(1)),
+            (10, Some(1)),
+            (100, Some(1)),
+            (102, Some(201)),
+            (120, Some(21)),
+            (0, Some(0)),
+            (-1, Some(-1)),
+            (-10, Some(-1)),
+            (-100, Some(-1)),
+            (-102, Some(-201)),
+            (-120, Some(-21)),
+        ];
+
+        for &(n, expected) in &test_cases {
+            let op = Op::rev();
             let result = op.apply(n);
             if result != expected {
                 panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
