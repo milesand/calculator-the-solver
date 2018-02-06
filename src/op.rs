@@ -4,6 +4,8 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::str::FromStr;
 
+use num::checked_pow;
+
 use self::error::{InvalidDivError, InvalidInsError, InvalidRpcError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,7 +18,7 @@ enum OpKind {
     Add(i32),
     Mul(i32),
     Div(i32),
-    Pow(u32),
+    Pow(usize),
     Del,
     Neg,
     Rev,
@@ -48,7 +50,7 @@ impl Op {
         }
     }
 
-    pub fn pow(n: u32) -> Self {
+    pub fn pow(n: usize) -> Self {
         Op {
             inner: OpKind::Pow(n),
         }
@@ -99,51 +101,46 @@ impl Op {
     pub fn apply(&self, n: i32) -> Option<i32> {
         use self::OpKind;
         match self.inner {
-            OpKind::Add(m) => Some(m + n),
-            OpKind::Mul(m) => Some(m * n),
-            OpKind::Div(m) => if n % m == 0 {
-                Some(n / m)
-            } else {
-                None
-            },
-            OpKind::Pow(m) => Some(n.pow(m)),
-            OpKind::Del => Some((n.abs() / 10) * n.signum()),
-            OpKind::Neg => Some(-n),
+            OpKind::Add(m) => n.checked_add(m),
+            OpKind::Mul(m) => n.checked_mul(m),
+            OpKind::Div(m) => if n % m == 0 { n.checked_div(m) } else { None },
+            OpKind::Pow(m) => checked_pow(n, m),
+            OpKind::Del => n.checked_abs()?.checked_div(10)?.checked_mul(n.signum()),
+            OpKind::Neg => n.checked_neg(),
             OpKind::Rev => {
                 let sign = n.signum();
-                let mut n = n.abs();
-                let mut result = 0;
+                let mut n = n.checked_abs()?;
+                let mut result: i32 = 0;
 
                 while n != 0 {
-                    result = result * 10 + n % 10;
-                    n /= 10;
+                    result = result.checked_mul(10)?.checked_add(n.checked_rem(10)?)?;
+                    n = n.checked_div(10)?;
                 }
 
-                Some(result * sign)
+                result.checked_mul(sign)
             },
             OpKind::Sum => {
                 let sign = n.signum();
-                let mut n = n.abs();
-                let mut result = 0;
+                let mut n = n.checked_abs()?;
+                let mut result: i32 = 0;
                 while n != 0 {
-                    result += n % 10;
-                    n /= 10;
+                    result = result.checked_add(n.checked_rem(10)?)?;
+                    n = n.checked_div(10)?;
                 }
 
-                Some(result * sign)
+                result.checked_mul(sign)
             }
-            OpKind::Ins { digits, n: m } => Some(
-                n * 10i32.pow(u32::from(digits)) + i32::try_from(m).ok()? * if n < 0 {
+            OpKind::Ins { digits, n: m } =>
+                n.checked_abs()?.checked_mul(checked_pow(10i32, usize::from(digits))?)?.checked_add(i32::try_from(m).ok()?)?.checked_mul(if n < 0 {
                     -1
                 } else {
                     1
-                }
-            ),
+                }),
             OpKind::Rpc { from_digits, from_n, to_digits, to_n } => {
-                let mut haystack = n.abs();
-                let mut haystack_pow_of_ten = 1;
+                let mut haystack = n.checked_abs()?;
+                let mut haystack_pow_of_ten: i32 = 1;
                 loop {
-                    let next_pow_of_ten = haystack_pow_of_ten * 10;
+                    let next_pow_of_ten = haystack_pow_of_ten.checked_mul(10)?;
                     if next_pow_of_ten <= haystack {
                         haystack_pow_of_ten = next_pow_of_ten;
                     } else {
@@ -151,42 +148,42 @@ impl Op {
                     }
                 }
 
-                let from_pow_of_ten = 10i32.pow(u32::from(from_digits)) / 10;
-                let to_pow_of_ten = 10i32.pow(u32::from(to_digits)) / 10;
+                let from_pow_of_ten = checked_pow(10i32, usize::from(from_digits))?.checked_div(10)?;
+                let to_pow_of_ten = checked_pow(10i32, usize::from(to_digits))?.checked_div(10)?;
                 let from_n = i32::try_from(from_n).ok()?;
                 let to_n = i32::try_from(to_n).ok()?;
 
-                let mut result = 0;
-                let mut intermediate = 0;
-                let mut intermediate_pow_of_ten = 0;
+                let mut result: i32 = 0;
+                let mut intermediate: i32 = 0;
+                let mut intermediate_pow_of_ten: i32 = 0;
 
                 while haystack_pow_of_ten != 0 {
                     if intermediate_pow_of_ten != from_pow_of_ten {
                         intermediate_pow_of_ten = if intermediate_pow_of_ten == 0 {
                             1
                         } else {
-                            intermediate_pow_of_ten * 10
+                            intermediate_pow_of_ten.checked_mul(10)?
                         };
-                        intermediate = intermediate * 10 + haystack / haystack_pow_of_ten;
+                        intermediate = intermediate.checked_mul(10)?.checked_add(haystack.checked_div(haystack_pow_of_ten)?)?;
                     } else if intermediate == from_n {
-                        result = result * to_pow_of_ten * 10 + to_n;
+                        result = result.checked_mul(to_pow_of_ten)?.checked_mul(10)?.checked_add(to_n)?;
                         intermediate_pow_of_ten = 1;
-                        intermediate = haystack / haystack_pow_of_ten;
+                        intermediate = haystack.checked_div(haystack_pow_of_ten)?;
                     } else {
-                        result = result * 10 + intermediate / intermediate_pow_of_ten;
-                        intermediate = (intermediate % intermediate_pow_of_ten) * 10 + haystack / haystack_pow_of_ten;
+                        result = result.checked_mul(10)?.checked_add(intermediate.checked_div(intermediate_pow_of_ten)?)?;
+                        intermediate = intermediate.checked_rem(intermediate_pow_of_ten)?.checked_mul(10)?.checked_add(haystack.checked_div(haystack_pow_of_ten)?)?;
                     }
-                    haystack %= haystack_pow_of_ten;
-                    haystack_pow_of_ten /= 10;
+                    haystack = haystack.checked_rem(haystack_pow_of_ten)?;
+                    haystack_pow_of_ten = haystack_pow_of_ten.checked_div(10)?;
                 }
 
                 if intermediate_pow_of_ten == from_pow_of_ten && intermediate == from_n {
-                    result = result * to_pow_of_ten * 10 + to_n;
+                    result = result.checked_mul(to_pow_of_ten)?.checked_mul(10)?.checked_add(to_n)?;
                 } else {
-                    result = result * intermediate_pow_of_ten * 10 + intermediate;
+                    result = result.checked_mul(intermediate_pow_of_ten)?.checked_mul(10)?.checked_add(intermediate)?;
                 }
 
-                Some(result * if n < 0 {-1} else {1})
+                result.checked_mul(if n < 0 {-1} else {1})
             }
         }.filter(|&n| -100000 < n && n < 1000000)
     }
@@ -783,9 +780,9 @@ mod tests {
             (2, 4, Some(16)),
             (-3, 2, Some(9)),
             (-3, 3, Some(-27)),
-            (1, u32::max_value(), Some(1)),
-            (0, u32::max_value(), Some(0)),
-            (-1, u32::max_value(), Some(-1)),
+            (1, 1234567, Some(1)),
+            (0, 1234567, Some(0)),
+            (-1, 1234567, Some(-1)),
             (10, 5, Some(100000)),
             (10, 6, None),
             (-10, 5, None),

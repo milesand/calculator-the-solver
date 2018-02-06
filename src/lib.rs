@@ -4,6 +4,7 @@
 #[macro_use]
 extern crate lazy_static;
 extern crate regex;
+extern crate num;
 
 mod op;
 pub use op::Op;
