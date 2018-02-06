@@ -20,6 +20,7 @@ enum OpKind {
     Del,
     Neg,
     Rev,
+    Sum,
     Ins { digits: u8, n: u32 },
     Rpc { from_digits: u8, from_n: u32, to_digits: u8, to_n: u32 },
 }
@@ -69,6 +70,12 @@ impl Op {
         }
     }
 
+    pub fn sum() -> Self {
+        Op {
+            inner: OpKind::Sum,
+        }
+    }
+
     pub fn ins(digits: u8, n: u32) -> Result<Self, InvalidInsError> {
         if n >= 10u32.pow(u32::from(digits)) {
             Err(InvalidInsError)
@@ -109,6 +116,17 @@ impl Op {
 
                 while n != 0 {
                     result = result * 10 + n % 10;
+                    n /= 10;
+                }
+
+                Some(result * sign)
+            },
+            OpKind::Sum => {
+                let sign = n.signum();
+                let mut n = n.abs();
+                let mut result = 0;
+                while n != 0 {
+                    result += n % 10;
                     n /= 10;
                 }
 
@@ -189,6 +207,8 @@ impl FromStr for Op {
             Ok(Op::neg())
         } else if s == "Reverse" {
             Ok(Op::rev())
+        } else if s == "SUM" {
+            Ok(Op::sum())
         } else if s.starts_with('-') {
             s.parse().map(Op::add).map_err(|_| ())
         } else if s.starts_with('+') {
@@ -242,6 +262,7 @@ impl fmt::Display for Op {
             OpKind::Pow(n) => write!(f, "^{}", n),
             OpKind::Del => write!(f, "<<"),
             OpKind::Neg => write!(f, "+/-"),
+            OpKind::Sum => write!(f, "SUM"),
             OpKind::Rev => write!(f, "Reverse"),
             OpKind::Ins { digits, n } => {
                 let mut pow_of_ten = if digits != 0 {
@@ -453,6 +474,16 @@ mod tests {
     }
 
     #[test]
+    fn parse_sum() {
+        let input = "SUM";
+        let result = input.parse::<Op>();
+        match result {
+            Ok(Op { inner: OpKind::Sum }) => (),
+            something_else => panic!("Parsed {:?}, Expected Ok( Op {{ inner: Sum }}); Got {:?} instead", input, something_else),
+        }
+    }
+
+    #[test]
     fn parse_ins() {
         let test_cases = [
             ("0", (1, 0)),
@@ -617,6 +648,16 @@ mod tests {
     fn display_rev() {
         let expected = "Reverse";
         let op = Op::rev();
+        let printed = format!("{}", op);
+        if printed != expected {
+            panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
+        }
+    }
+
+    #[test]
+    fn display_sum() {
+        let expected = "SUM";
+        let op = Op::sum();
         let printed = format!("{}", op);
         if printed != expected {
             panic!("Formatted {:?}, Expected {:?}; Got {:?} instead", op, expected, printed);
@@ -817,6 +858,29 @@ mod tests {
 
         for &(n, expected) in &test_cases {
             let op = Op::rev();
+            let result = op.apply(n);
+            if result != expected {
+                panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_sum() {
+        let test_cases = [
+            (1, Some(1)),
+            (23, Some(5)),
+            (456, Some(15)),
+            (78910, Some(25)),
+            (0, Some(0)),
+            (-1, Some(-1)),
+            (-23, Some(-5)),
+            (-456, Some(-15)),
+            (-78910, Some(-25)),
+        ];
+
+        for &(n, expected) in &test_cases {
+            let op = Op::sum();
             let result = op.apply(n);
             if result != expected {
                 panic!("Applied {} to {}, Expected {:?}; Got {:?} instead", op, n, expected, result);
